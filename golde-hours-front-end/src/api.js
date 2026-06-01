@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const runtimeApiUrl = typeof window !== "undefined" ? window.__ENV__?.VITE_API_URL : "";
+const API_URL = runtimeApiUrl || import.meta.env.VITE_API_URL || "https://gopinathv19-golden-hours-backend.hf.space";
 
 export async function request(path, options = {}) {
   const token = localStorage.getItem("golden_hours_token");
