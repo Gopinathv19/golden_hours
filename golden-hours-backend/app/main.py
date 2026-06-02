@@ -7,10 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from .auth import create_access_token, get_current_user, hash_password, verify_password
+from .auth import create_access_token, get_current_user, hash_password, verify_google_token, verify_password
 from .config import get_settings
 from .database import close_mongo_connection, connect_to_mongo, get_database
-from .models import EntryCreate, EntryOut, EntryUpdate, SummaryOut, TokenOut, UserCreate, UserLogin
+from .models import EntryCreate, EntryOut, EntryUpdate, GoogleAuthIn, SummaryOut, TokenOut, UserCreate, UserLogin
 from .utils import QUOTES, entry_to_out, month_key, start_of_week, user_to_out, utc_now
 
 settings = get_settings()
@@ -53,6 +53,8 @@ async def register(payload: UserCreate) -> dict:
         "name": payload.name,
         "email": payload.email.lower(),
         "password_hash": hash_password(payload.password),
+        "auth_provider": "password",
+        "picture": None,
         "total_goal_hours": 10000,
         "created_at": utc_now(),
     }
@@ -68,8 +70,50 @@ async def register(payload: UserCreate) -> dict:
 async def login(payload: UserLogin) -> dict:
     db = get_database()
     user = await db.users.find_one({"email": payload.email.lower()})
-    if not user or not verify_password(payload.password, user["password_hash"]):
+    if not user or not user.get("password_hash") or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    return {"access_token": create_access_token(str(user["_id"])), "user": user_to_out(user)}
+
+
+@app.post("/api/auth/google", response_model=TokenOut)
+async def google_auth(payload: GoogleAuthIn) -> dict:
+    db = get_database()
+    profile = verify_google_token(payload.credential)
+    email = profile["email"].lower()
+    google_sub = profile["sub"]
+
+    user = await db.users.find_one({"google_sub": google_sub})
+    if user is None:
+        existing = await db.users.find_one({"email": email})
+        google_fields = {
+            "google_sub": google_sub,
+            "picture": profile.get("picture"),
+            "updated_at": utc_now(),
+        }
+        if existing:
+            user = await db.users.find_one_and_update(
+                {"_id": existing["_id"]},
+                {"$set": google_fields},
+                return_document=ReturnDocument.AFTER,
+            )
+        else:
+            user = {
+                "name": profile.get("name") or email.split("@")[0],
+                "email": email,
+                "password_hash": None,
+                "auth_provider": "google",
+                "google_sub": google_sub,
+                "picture": profile.get("picture"),
+                "total_goal_hours": 10000,
+                "created_at": utc_now(),
+                "updated_at": utc_now(),
+            }
+            try:
+                result = await db.users.insert_one(user)
+            except DuplicateKeyError as exc:
+                raise HTTPException(status_code=409, detail="Email already registered") from exc
+            user["_id"] = result.inserted_id
+
     return {"access_token": create_access_token(str(user["_id"])), "user": user_to_out(user)}
 
 

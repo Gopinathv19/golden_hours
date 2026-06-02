@@ -8,11 +8,10 @@ client: AsyncIOMotorClient | None = None
 
 def create_mongo_client() -> AsyncIOMotorClient:
     settings = get_settings()
-    return AsyncIOMotorClient(
-        settings.mongodb_uri,
-        tlsCAFile=certifi.where(),
-        serverSelectionTimeoutMS=10000,
-    )
+    kwargs = {"serverSelectionTimeoutMS": 10000}
+    if settings.mongodb_uri.startswith("mongodb+srv"):
+        kwargs["tlsCAFile"] = certifi.where()
+    return AsyncIOMotorClient(settings.mongodb_uri, **kwargs)
 
 
 async def connect_to_mongo() -> None:
@@ -20,6 +19,7 @@ async def connect_to_mongo() -> None:
     client = create_mongo_client()
     db = get_database()
     await db.users.create_index("email", unique=True)
+    await db.users.create_index("google_sub", unique=True, sparse=True)
     await db.entries.create_index([("user_id", 1), ("date", -1)])
 
 

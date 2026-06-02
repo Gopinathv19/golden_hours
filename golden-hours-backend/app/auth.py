@@ -2,6 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from bson import ObjectId
+from google.auth.transport import requests
+from google.oauth2 import id_token
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -29,6 +31,21 @@ def create_access_token(user_id: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
+def verify_google_token(credential: str) -> dict:
+    settings = get_settings()
+    if not settings.google_client_id:
+        raise HTTPException(status_code=503, detail="Google authentication is not configured")
+
+    try:
+        profile = id_token.verify_oauth2_token(credential, requests.Request(), settings.google_client_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid Google sign-in token") from exc
+
+    if not profile.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Google account email is not verified")
+    return profile
+
+
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     settings = get_settings()
     credentials_exception = HTTPException(
@@ -43,6 +60,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             raise credentials_exception
     except JWTError as exc:
         raise credentials_exception from exc
+
+    if not ObjectId.is_valid(user_id):
+        raise credentials_exception
 
     db = get_database()
     user = await db.users.find_one({"_id": ObjectId(user_id)})

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     mongodb_db: str = Field(default="golden_hours", alias="MONGODB_DB")
     jwt_secret: str = Field(default="change-this-secret", alias="JWT_SECRET")
     jwt_expires_minutes: int = Field(default=10080, alias="JWT_EXPIRES_MINUTES")
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     cors_origins: str = Field(
         default="http://localhost:5173,http://localhost:3000,https://gopinathv19-golde-hours-front-end.hf.space",
         alias="CORS_ORIGINS",

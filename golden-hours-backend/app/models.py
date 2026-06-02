@@ -2,24 +2,38 @@ from datetime import date as Date
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     email: EmailStr
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if len(normalized) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return normalized
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1, max_length=128)
+
+
+class GoogleAuthIn(BaseModel):
+    credential: str = Field(min_length=20)
 
 
 class UserOut(BaseModel):
     id: str
     name: str
     email: EmailStr
+    auth_provider: str = "password"
+    picture: str | None = None
     total_goal_hours: float = 10000
     created_at: datetime
 

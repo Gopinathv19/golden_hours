@@ -20,6 +20,8 @@ def user_to_out(user: dict) -> dict:
         "id": object_id(user["_id"]),
         "name": user["name"],
         "email": user["email"],
+        "auth_provider": user.get("auth_provider", "password"),
+        "picture": user.get("picture"),
         "total_goal_hours": user.get("total_goal_hours", 10000),
         "created_at": user["created_at"],
     }
