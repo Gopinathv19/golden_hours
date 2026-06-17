@@ -31,5 +31,6 @@ async def close_mongo_connection() -> None:
 def get_database() -> AsyncIOMotorDatabase:
     if client is None:
         settings = get_settings()
+        print(settings.mongodb_uri)
         return create_mongo_client()[settings.mongodb_db]
     return client[get_settings().mongodb_db]
